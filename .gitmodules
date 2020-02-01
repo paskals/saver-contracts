@@ -1,0 +1,3 @@
+[submodule "ds-proxy"]
+	path = ds-proxy
+	url = https://github.com/paskals/ds-proxy.git
