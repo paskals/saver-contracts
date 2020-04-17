@@ -5,12 +5,11 @@ import "./accounting/contracts/Accounting.sol";
 import "./accounting/lib/math-lib.sol";
 
 // Lockr v 1
-contract Lockr is ProxyData, Accounting {
-    using DSMath for uint;
 
-    uint constant ONE_PERCENT_WAD = 10 ** 16;// 1 wad is 10^18, so 1% in wad is 10^16
-    uint constant ONE_WAD = 10 ** 18;
-
+contract LockrData is ProxyData, Accounting {
+    uint ONE_PERCENT_WAD = 10 ** 16;// 1 wad is 10^18, so 1% in wad is 10^16
+    uint ONE_WAD = 10 ** 18;
+    uint public version = 1;
     struct Vault {
         uint64 deadline;
         uint64 created;
@@ -19,6 +18,14 @@ contract Lockr is ProxyData, Accounting {
     } 
 
     Vault[] internal vaults;
+
+    event VaultCreated();
+    event EarlyWithdrawal();
+    event Withdrawal();
+}
+
+contract Lockr is LockrData {
+    using DSMath for uint;
 
     modifier onlyActive(uint vault) {
         require(vaults.length > vault, "Vault doesn't exist");
@@ -32,6 +39,15 @@ contract Lockr is ProxyData, Accounting {
         _;
     }
 
+    function init() external auth {
+        require(version == 0, "Already Initialized");
+        version = 1;
+        ONE_PERCENT_WAD = 10 ** 16;// 1 wad is 10^18, so 1% in wad is 10^16
+        ONE_WAD = 10 ** 18;
+        base.name = "Base";
+        vaults.length = 0;
+    }
+
     function createVault(uint64 deadline, uint feeWad) external auth returns(uint index) {
         require(deadline > uint64(block.timestamp), "Invalid deadline");
         require(feeWad >= ONE_PERCENT_WAD * 10 && feeWad <= 50 * ONE_PERCENT_WAD, "Fee out of range");
@@ -42,6 +58,7 @@ contract Lockr is ProxyData, Accounting {
         v.deadline = deadline;
         v.feeWad = feeWad;
         v.account.name = bytes32(index);
+        emit VaultCreated();
     }
 
     function depositETHToVault(uint vault) external  payable onlyActive(vault) {
@@ -57,6 +74,7 @@ contract Lockr is ProxyData, Accounting {
     function withdrawETH(uint vault, uint value) external auth onlyInactive(vault) {
         Vault storage v = vaults[vault];
         sendETH(v.account, msg.sender, value);
+        emit Withdrawal();
     }
 
     function withdrawETHEarly(uint vault, uint value) external auth onlyActive(vault) {
@@ -69,11 +87,13 @@ contract Lockr is ProxyData, Accounting {
         // TODO: Fix contract to address payable for v.0.6: payable(address(x))
         sendETH(v.account, address(bytes20(address(proxyAuth))), fee);
         sendETH(v.account, msg.sender, toSend);
+        emit EarlyWithdrawal();
     }
 
     function withdrawToken(uint vault, address token, uint value) external auth onlyInactive(vault) {
         Vault storage v = vaults[vault];
         sendToken(v.account, token, msg.sender, value);
+        emit Withdrawal();
     }
 
     function withdrawTokenEarly(uint vault, address token, uint value) external auth onlyActive(vault) {
@@ -86,5 +106,10 @@ contract Lockr is ProxyData, Accounting {
         // TODO: Fix contract to address payable for v.0.6: payable(address(x))
         sendToken(v.account, token, address(bytes20(address(proxyAuth))), fee);
         sendToken(v.account, token, msg.sender, toSend);
+        emit EarlyWithdrawal();
+    }
+
+    function vaultsNr() external view returns(uint) {
+        return vaults.length;
     }
 }
