@@ -50,11 +50,11 @@ contract Lockr is LockrData {
 
     function createVault(uint64 deadline, uint feeWad) external auth returns(uint index) {
         require(deadline > uint64(block.timestamp), "Invalid deadline");
-        require(feeWad >= ONE_PERCENT_WAD * 10 && feeWad <= 50 * ONE_PERCENT_WAD, "Fee out of range");
+        require(feeWad >= ONE_PERCENT_WAD * 5 && feeWad <= 50 * ONE_PERCENT_WAD, "Fee out of range");
         vaults.length++;
         index = vaults.length - 1;
         Vault storage v = vaults[index];
-        v.created = uint64(block.number);
+        v.created = uint64(block.timestamp);
         v.deadline = deadline;
         v.feeWad = feeWad;
         v.account.name = bytes32(index);
@@ -111,5 +111,17 @@ contract Lockr is LockrData {
 
     function vaultsNr() external view returns(uint) {
         return vaults.length;
+    }
+
+    function vaultInfo(uint index) external view 
+    returns(uint64 created, uint64 deadline, uint fee, uint etherBalance) {
+        created = vaults[index].created;
+        deadline = vaults[index].deadline;
+        fee = vaults[index].feeWad;
+        etherBalance = vaults[index].account.balanceETH;
+    }
+
+    function vaultTokenBalance(uint index, address token) external view returns(uint) {
+        return vaults[index].account.tokenBalances[token];
     }
 }
